@@ -116,7 +116,7 @@ export default function Main() {
             <h3 className="text-lg font-bold">Your Closet</h3>
             <label className="text-indigo-600 font-bold text-sm cursor-pointer hover:underline">
               {isUploading ? "Uploading..." : "+ Add Item"}
-              <input type="file" className="hidden" accept="image/*" capture="environment" onChange={handleUpload} />
+              <input type="file" className="hidden" accept="image/*" onChange={handleUpload} />
             </label>
           </div>
           
