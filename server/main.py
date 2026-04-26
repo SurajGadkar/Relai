@@ -27,8 +27,8 @@ def init_db():
     # Updated schema: matches your upload logic (image_path, tags)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS closet (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            image_path TEXT,
+            id TEXT PRIMARY KEY, 
+            image_path TEXT, 
             tags TEXT
         )
     ''')
