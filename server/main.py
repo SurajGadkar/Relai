@@ -50,7 +50,7 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 # --- OpenAI Client (Local Ollama) ---
 client = OpenAI(
     api_key="ollama", # Key is required but ignored by Ollama
-    base_url="http://localhost:1234/v1",
+    base_url="https://unorbed-jamarion-terminatory.ngrok-free.dev/v1",
 )
 
 # --- Endpoints ---
