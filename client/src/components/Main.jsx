@@ -26,33 +26,36 @@ export default function Main() {
     }
   };
 
-  const handleUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  const handleBulkUpload = async (event) => {
+    const selectedFiles = event.target.files; // This is a FileList
+    if (!selectedFiles.length) return;
 
-    setIsUploading(true);
     const formData = new FormData();
-    formData.append('file', file);
+    
+    // SDE 2 Tip: Append each file to the SAME key "files"
+    // This matches the List[UploadFile] in your FastAPI backend
+    for (let file of selectedFiles) {
+      formData.append("files", file);
+    }
+
+    // If you have a user_id (for the future multi-user support)
+    formData.append("user_id", "suraj_01");
 
     try {
-      const res = await fetch(`${API_BASE}/upload`, {
-        method: 'POST',
+      const response = await fetch(`${API_BASE}/upload`, {
+        method: "POST",
         body: formData,
+        // Note: Don't set 'Content-Type' header manually, 
+        // the browser will set it to 'multipart/form-data' with the correct boundary.
       });
-      
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.detail || "Upload failed");
-      }
 
-      // Success!
+      const data = await response.json();
+      console.log("Upload queued:", data);
+      
+      // Refresh the closet to see the "Processing..." items
       fetchItems(); 
-    } catch (err) {
-      alert(`Upload failed: ${err.message}`);
-    } finally {
-      setIsUploading(false);
-      // Reset input value so same file can be uploaded again if needed
-      e.target.value = null;
+    } catch (error) {
+      console.error("Upload failed:", error);
     }
   };
 
@@ -140,7 +143,7 @@ export default function Main() {
             <h3 className="text-lg font-bold tracking-tight">Your Closet</h3>
             <label className="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-full font-bold text-xs cursor-pointer hover:bg-indigo-100 transition-colors">
               {isUploading ? "AI Identifying..." : "+ Add Item"}
-              <input type="file" className="hidden" accept="image/*" onChange={handleUpload} disabled={isUploading} />
+              <input type="file" multiple className="hidden" accept="image/*" onChange={handleBulkUpload} disabled={isUploading} />
             </label>
           </div>
           
@@ -148,8 +151,8 @@ export default function Main() {
             {items.length > 0 ? items.map((item) => (
               <div key={item.id} className="group relative bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100">
                 <img 
-                  src={`${API_BASE}/${item.image_path}`} 
-                  alt={item.tags} 
+                  src={item.image_path}
+                  alt={item.tags}
                   className="w-full aspect-[4/5] object-cover transition-transform duration-700 group-hover:scale-110"
                 />
                 <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 via-black/20 to-transparent">
@@ -197,7 +200,7 @@ const OutfitSuggestion = ({ suggestion }) => {
           >
             <div className="relative overflow-hidden rounded-[2rem]">
               <img 
-                src={`${API_BASE}/${item.path}`} 
+                src={item.path}
                 alt={item.description}
                 className="w-full aspect-[3/4] object-cover"
               />
