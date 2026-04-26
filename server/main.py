@@ -9,10 +9,11 @@ from fastapi.staticfiles import StaticFiles
 # --- Database & Folder Initialization ---
 DATABASE_NAME = "database.db"
 UPLOAD_FOLDER = "uploads"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 def init_db():
     # Ensure the upload folder exists so the app doesn't crash on first upload
-    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    
     
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
