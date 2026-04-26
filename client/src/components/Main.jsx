@@ -8,6 +8,7 @@ export default function Main() {
   const [loading, setLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [items, setItems] = useState([]);
+  const [error, setError] = useState("");
 
   // Fetch closet items on load
   useEffect(() => {
@@ -51,12 +52,16 @@ export default function Main() {
 
   const getSuggestion = async () => {
     setLoading(true);
+    setError("");
     setSuggestion("");
     try {
-      // Sending hardcoded Bangalore weather for now
       const res = await fetch(`${API_BASE}/suggest?weather=sunny&vibe=${vibe}`);
       const data = await res.json();
-      setSuggestion(data);
+      if (data.error) {
+        setError(data.error);
+      } else {
+        setSuggestion(data);
+      }
     } catch (err) {
       setSuggestion("Stylist is offline. Check if your Local LLM is running.");
     } finally {
@@ -101,6 +106,14 @@ export default function Main() {
           >
             {loading ? "Analyzing Wardrobe..." : "Ask the Stylist"}
           </button>
+
+          {error && (
+            <div className="mt-8 p-6 bg-red-50 border border-red-100 rounded-[2rem] text-center">
+              <span className="text-2xl">⚠️</span>
+              <h3 className="text-red-800 font-bold mt-2">Stylist is Busy</h3>
+              <p className="text-red-500 text-xs mt-1">{error}</p>
+            </div>
+          )}
 
           {suggestion && (
             <OutfitSuggestion suggestion={suggestion.outfit} />
