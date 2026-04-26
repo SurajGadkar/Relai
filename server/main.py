@@ -137,7 +137,8 @@ async def upload_clothing_item(file: UploadFile = File(...), tags: str = Form(..
             "role": "user",
             "content": [
                 {"type": "text", "text": "Identify this clothing item. Respond with proper indentification like color, style, dress format in words but identify the type like formal, casual, "
-                "beach wear based on the image (e.g., 'Black Casual Slim Jeans, White Formal Shirt, Black Casual Trouser')."},
+                "beach wear based on the image (e.g., 'Black Casual Slim Jeans, White Formal Shirt, Black Casual Trouser')."
+                "Strictly needs to have Color, Style like casual, formal, beachwear etc., and dress format like jeans, shirt, t-shirt, trouser, skirt etc. in the response. and no extra text, only the identification."},
                 {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
             ]
         }]
