@@ -1,3 +1,5 @@
+from time import time
+
 from openai import OpenAI
 import os
 import sqlite3
@@ -98,7 +100,9 @@ async def suggest_outfit(weather: str, vibe: str):
 @app.post("/upload")
 async def upload_clothing_item(file: UploadFile = File(...), tags: str = Form(...)):
     # Create unique filename to prevent overwrites
-    file_location = os.path.join(UPLOAD_FOLDER, file.filename)
+    timestamp = int(time.time())
+    unique_filename = f"{timestamp}_{file.filename}"
+    file_location = os.path.join(UPLOAD_FOLDER, unique_filename)
     
     with open(file_location, "wb") as f:
         f.write(await file.read())
