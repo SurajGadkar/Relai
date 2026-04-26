@@ -11,6 +11,10 @@ DATABASE_NAME = "database.db"
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+# Grab the ngrok URL from Railway settings
+# Fallback to localhost:11434 for when you work locally
+tunnel_url = os.getenv("LLM_PUBLIC_URL", "http://localhost:1234")
+
 def init_db():
     # Ensure the upload folder exists so the app doesn't crash on first upload
     conn = sqlite3.connect(DATABASE_NAME)
@@ -50,7 +54,7 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 # --- OpenAI Client (Local Ollama) ---
 client = OpenAI(
     api_key="ollama", # Key is required but ignored by Ollama
-    base_url="https://unorbed-jamarion-terminatory.ngrok-free.dev/v1",
+    base_url=f"{tunnel_url}/v1",
 )
 
 # --- Endpoints ---
