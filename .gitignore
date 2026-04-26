@@ -1,0 +1,14 @@
+# Python
+server/.venv/
+server/__pycache__/
+server/database.db
+server/uploads/*
+!server/uploads/.gitkeep
+
+# Node
+client/node_modules/
+client/dist/
+
+# Environment
+.env
+.DS_Store
