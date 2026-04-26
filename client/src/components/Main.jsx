@@ -28,9 +28,6 @@ export default function Main() {
     const file = e.target.files[0];
     if (!file) return;
 
-    const tags = prompt("What is this? (e.g., 'Beige Chinos', 'Navy Polo')");
-    if (!tags) return;
-
     setIsUploading(true);
     const formData = new FormData();
     formData.append('file', file);
