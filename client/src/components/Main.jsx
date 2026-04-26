@@ -28,10 +28,10 @@ export default function Main() {
     const file = e.target.files[0];
     if (!file) return;
 
+
     setIsUploading(true);
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('tags', tags);
 
     try {
       const res = await fetch(`${API_BASE}/upload`, {

@@ -117,7 +117,7 @@ async def suggest_outfit(weather: str, vibe: str):
         return {"outfit": [], "error": "AI failed to generate a suggestion."}
 
 @app.post("/upload")
-async def upload_clothing_item(file: UploadFile = File(...), tags: str = Form(...)):
+async def upload_clothing_item(file: UploadFile = File(...)):
     # 1. Create unique filename to prevent overwrites
     item_id = str(uuid.uuid4())
     file_extension = file.filename.split(".")[-1]
