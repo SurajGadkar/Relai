@@ -1,4 +1,5 @@
 from time import time
+from urllib import response
 from openai import OpenAI
 import os
 import sqlite3
@@ -100,17 +101,27 @@ async def suggest_outfit(weather: str, vibe: str):
             messages=[{"role": "user", "content": prompt}],
         )
 
-        # Extract the text and parse it
-        content = response.choices[0].message.content.strip()
-    
-        json_str = re.search(r'\{.*\}', content, re.DOTALL).group()
-        data = json.loads(json_str)
+        # 1. Clean the AI content (removes ```json and ```)
+        content = response.choices[0].message.content
+        json_match = re.search(r'\{.*\}', content, re.DOTALL)
 
-        # Convert IDs back to ints to match your DB records
-        suggested_ids = [int(id_val) for id_val in data.get("ids", [])]
-        final_outfit = [item for item in closet_items if item["id"] in suggested_ids]
-        
-        return {"outfit": final_outfit}
+        if json_match:
+            clean_json = json_match.group()
+            data = json.loads(clean_json)
+            
+            # 2. Get the IDs exactly as they are (Strings for UUIDs)
+            suggested_ids = data.get("ids", [])
+            
+            # 3. Filter the closet
+            # We use 'str(item["id"])' to ensure we compare string-to-string
+            final_outfit = [
+                item for item in closet_items 
+                if str(item["id"]) in [str(sid) for sid in suggested_ids]
+            ]
+            
+            return {"outfit": final_outfit}
+        else:
+            raise ValueError("AI output did not contain valid JSON")
 
     except Exception as e:
         print(f"AI Error: {e}")
