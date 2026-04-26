@@ -13,8 +13,6 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 def init_db():
     # Ensure the upload folder exists so the app doesn't crash on first upload
-    
-    
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
     # Updated schema: matches your upload logic (image_path, tags)
@@ -38,9 +36,11 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 # --- Middleware ---
+allowed_origins = [os.getenv("FRONTEND_URL", "http://localhost:5173")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
