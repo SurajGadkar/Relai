@@ -1,5 +1,4 @@
 from time import time
-
 from openai import OpenAI
 import os
 import sqlite3
@@ -7,6 +6,10 @@ from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
+import base64
+import uuid
+import json
+import re
 
 # --- Database & Folder Initialization ---
 DATABASE_NAME = "database.db"
@@ -65,55 +68,91 @@ client = OpenAI(
 async def suggest_outfit(weather: str, vibe: str):
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
-    cursor.execute("SELECT tags FROM closet")
-    items = [row[0] for row in cursor.fetchall()]
+    cursor.execute("SELECT id, tags, image_path FROM closet")
+    closet_items = [{"id": row[0], "description": row[1], "path": row[2]} for row in cursor.fetchall()]
     conn.close()
 
+    if not closet_items:
+        return {"outfit": [], "message": "Your closet is empty!"}
 
-    if not items:
-        return {"suggestion": "Your closet is empty! Upload some clothes first."}
+    closet_menu = "\n".join([f"ID {item['id']}: {item['description']}" for item in closet_items])
 
-    prompt = f"""You are the best fashion advisor, taking the weather: {weather} 
-    and the  vibe: {vibe} into consideration.
-
-
-    Rules : 
+    prompt = f"""You are the best fashion advisor, taking the weather: {weather} and the vibe: {vibe} into consideration.
+    Rules:
     1. Always suggest a complete outfit but within the given clothes.
     2. Consider the weather and vibe when suggesting an outfit.
     3. You have boundaries, you can only suggest outfits, if any prompts like weather, vibe or clothes are not making sense, or seems invalid
-        do not take it into consideration and ask user to provide valid inputs only.
+    do not take it into consideration and ask user to provide valid inputs only.
     4. Your output should be in a strict format, only outfit suggestion within the given clothes, no explanations or extra text.
     5. You can only suggest outfits using the clothes available in the closet, you cannot suggest any outfit that is not present in the closet.
     6. If the user provides invalid weather or vibe, ask them to provide valid inputs without suggesting an outfit.
     7. Complete outfit suggested should match appropraitely example, formal shirts cannot go with jeans or shorts, beachwear cannot go with formal shoes, etc.
-     only casual shirts can go with shorts, jeans etc. shoes should match the outfit, for example, formal shoes cannot go with casual shirts and shorts, etc.
+    only casual shirts can go with shorts, jeans etc. shoes should match the outfit, for example, formal shoes cannot go with casual shirts and shorts, etc.
+    8. 4. Format your response as a JSON object with a key "ids" containing a list of strings.
+        Example: {{"ids": ["1", "5"]}}
 
-    these are the clothes available: {', '.join(items)}. Suggest an outfit."""
+    these are the clothes available: {closet_menu}.
+    Suggest an outfit."""
     
-    response = client.chat.completions.create(
-        model="google/gemma-4-e4b", 
-        messages=[{"role": "user", "content": prompt}]
-    )
+    try:
+        response = client.chat.completions.create(
+            model="google/gemma-4-e4b",
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        # Extract the text and parse it
+        content = response.choices[0].message.content.strip()
     
-    return {"suggestion": response.choices[0].message.content}
+        json_str = re.search(r'\{.*\}', content, re.DOTALL).group()
+        data = json.loads(json_str)
+
+        # Convert IDs back to ints to match your DB records
+        suggested_ids = [int(id_val) for id_val in data.get("ids", [])]
+        final_outfit = [item for item in closet_items if item["id"] in suggested_ids]
+        
+        return {"outfit": final_outfit}
+
+    except Exception as e:
+        print(f"AI Error: {e}")
+        return {"outfit": [], "error": "AI failed to generate a suggestion."}
 
 @app.post("/upload")
 async def upload_clothing_item(file: UploadFile = File(...), tags: str = Form(...)):
-    # Create unique filename to prevent overwrites
-    timestamp = int(time.time())
-    unique_filename = f"{timestamp}_{file.filename}"
+    # 1. Create unique filename to prevent overwrites
+    item_id = str(uuid.uuid4())
+    file_extension = file.filename.split(".")[-1]
+    unique_filename = f"{item_id}.{file_extension}"
     file_location = os.path.join(UPLOAD_FOLDER, unique_filename)
     
     with open(file_location, "wb") as f:
         f.write(await file.read())
     
+    # 2. Get AI to identify the clothing
+    with open(file_location, "rb") as img_file:
+        base64_image = base64.b64encode(img_file.read()).decode('utf-8')
+
+    vision_response = client.chat.completions.create(
+        model="google/gemma-4-e4b", 
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "Identify this clothing item. Respond with proper indentification like color, style, dress format in words but identify the type like formal, casual, "
+                "beach wear based on the image (e.g., 'Black Casual Slim Jeans, White Formal Shirt, Black Casual Trouser')."},
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+            ]
+        }]
+    )
+    ai_tags = vision_response.choices[0].message.content
+    
+    # 3. Store ID, Path, and AI Tags in DB
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO closet (image_path, tags) VALUES (?, ?)", (file_location, tags))
+    cursor.execute("INSERT INTO closet (id, image_path, tags) VALUES (?, ?, ?)", 
+                   (item_id, file_location, ai_tags))
     conn.commit()
     conn.close()
-    
-    return {"message": f"Successfully added {tags} to your closet!"}
+
+    return {"message": f"Successfully added id: {item_id} with tags: {ai_tags} to your closet!"}
 
 @app.get("/items")
 async def get_items():
