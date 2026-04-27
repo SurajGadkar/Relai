@@ -98,7 +98,6 @@ async def suggest_outfit(weather: str, vibe: str):
     cursor.execute("SELECT id, tags, image_path FROM closet")
     rows = cursor.fetchall()
     
-    # FIX 1: Handle dict vs tuple for the suggestion logic
     closet_items = []
     for row in rows:
         if isinstance(row, dict):
@@ -110,16 +109,33 @@ async def suggest_outfit(weather: str, vibe: str):
     conn.close()
 
     if not closet_items:
-        return {"outfit": [], "message": "Your closet is empty!"}
+        return {"suggestions": [], "message": "Your closet is empty!"}
 
     closet_menu = "\n".join([f"ID {item['id']}: {item['description']}" for item in closet_items])
 
+    # NOTE: I used double braces {{ }} for the JSON structure so Python's .format() doesn't break
     prompt = f"""You are a master fashion stylist. Weather: {weather}, Vibe: {vibe}.
     Rules:
     1. Only use provided IDs. 
-    2. Suggest a complete, matching outfit.
-    3. Return ONLY a JSON object with a key "ids" containing a list of strings.
-    Example: {{"ids": ["uuid-1", "uuid-2"]}}
+    2. Provide 3 distinct outfit suggestions. 
+    3. For each, provide a 'style_score' (1-10) and 'reasoning' (color theory, 60-30-10 rule).
+    4. Return ONLY a JSON object in this format:
+    5. Do not return any extra characters, explanations, or apologies. Strictly follow the format.
+    {{
+        "suggestions": [
+            {{
+                "rank": 1,
+                "style_score": 9.2,
+                "items": {{
+                    "top": {{ "id": "ID_HERE", "label": "Name" }},
+                    "bottom": {{ "id": "ID_HERE", "label": "Name" }},
+                    "shoes": {{ "id": "ID_HERE", "label": "Name" }}
+                }},
+                "reasoning": "...",
+                "logic": "60% color, 30% color, 10% color"
+            }}
+        ]
+    }}
 
     Available Closet:
     {closet_menu}
@@ -136,21 +152,17 @@ async def suggest_outfit(weather: str, vibe: str):
 
         if json_match:
             data = json.loads(json_match.group())
-            suggested_ids = data.get("ids", [])
-            
-            final_outfit = [
-                item for item in closet_items 
-                if str(item["id"]) in [str(sid) for sid in suggested_ids]
-            ]
-            return {"outfit": final_outfit}
+            # We return the whole 'data' object now, not just a filtered list
+            # Your React frontend will use the IDs inside 'suggestions' to find images
+            return data 
         else:
-            return {"outfit": [], "error": "AI returned invalid format."}
+            return {"suggestions": [], "error": "AI returned invalid format."}
 
     except Exception as e:
         print(f"AI Error: {e}")
-        return {"outfit": [], "error": "Stylist is offline."}
-
-
+        return {"suggestions": [], "error": str(e)}
+    
+    
 async def process_ai_tags(item_id: str, base64_image: str):
     try:
         vision_response = client.chat.completions.create(
@@ -178,6 +190,7 @@ async def process_ai_tags(item_id: str, base64_image: str):
         conn.close()
     except Exception as e:
         print(f"Background AI Error: {e}")
+
 
 @app.post("/upload")
 async def upload_clothing_items(
