@@ -100,10 +100,12 @@ async def suggest_outfit(weather: str, vibe: str):
     
     closet_items = []
     for row in rows:
-        if isinstance(row, dict):
-            closet_items.append({"id": row['id'], "description": row['tags'], "path": row['image_path']})
-        else:
-            closet_items.append({"id": row[0], "description": row[1], "path": row[2]})
+        # Access by name is safe for both Dict cursors and sqlite3.Row
+        closet_items.append({
+            "id": row['id'], 
+            "description": row['tags'], 
+            "path": row['image_path']
+        })
     
     cursor.close()
     conn.close()
@@ -235,15 +237,17 @@ async def upload_clothing_items(
 async def get_items():
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, image_path, tags FROM closet ORDER BY id DESC")
+    cursor.execute("SELECT id, image_path, tags FROM closet ORDER BY created_at DESC")
     rows = cursor.fetchall()
     
     items = []
     for row in rows:
-        if isinstance(row, dict):
-            items.append(row)
-        else:
-            items.append({"id": row[0], "image_path": row[1], "tags": row[2]})
+        # This approach works for both sqlite3.Row and psycopg2.extras.DictRow
+        items.append({
+            "id": row["id"],
+            "image_path": row["image_path"],
+            "tags": row["tags"]
+        })
         
     cursor.close()
     conn.close()
