@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 
 // Use environment variable or fallback to local
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-export default function Main() {
+export default function Main({ token, onSignOut }) {
   const [vibe, setVibe] = useState("Casual");
   const [suggestion, setSuggestion] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -11,26 +11,29 @@ export default function Main() {
   const [items, setItems] = useState([]);
   const [error, setError] = useState("");
 
+  const authHeaders = { Authorization: `Bearer ${token}` };
+
+  const fetchItems = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/items`, { headers: authHeaders });
+      const data = await res.json();
+      setItems(data);
+    } catch (err) {
+      console.error("Failed to fetch items from backend.", err);
+    }
+  };
+
   // Fetch closet items on load
   useEffect(() => {
     fetchItems();
   }, []);
-
-  const fetchItems = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/items`);
-      const data = await res.json();
-      setItems(data);
-    } catch (err) {
-      console.error("Failed to fetch items from backend.");
-    }
-  };
 
 
   const handleBulkUpload = async (event) => {
     const selectedFiles = event.target.files; // This is a FileList
     if (!selectedFiles.length) return;
 
+    setIsUploading(true);
     const formData = new FormData();
 
     // SDE 2 Tip: Append each file to the SAME key "files"
@@ -39,15 +42,13 @@ export default function Main() {
       formData.append("files", file);
     }
 
-    // If you have a user_id (for the future multi-user support)
-    formData.append("user_id", "suraj_01");
+    // user_id is derived from the JWT on the backend — no need to send it
 
     try {
       const response = await fetch(`${API_BASE}/upload`, {
         method: "POST",
+        headers: authHeaders,
         body: formData,
-        // Note: Don't set 'Content-Type' header manually,
-        // the browser will set it to 'multipart/form-data' with the correct boundary.
       });
 
       const data = await response.json();
@@ -57,6 +58,8 @@ export default function Main() {
       fetchItems();
     } catch (error) {
       console.error("Upload failed:", error);
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -65,13 +68,20 @@ export default function Main() {
     setError("");
     setSuggestion(null);
     try {
-      const res = await fetch(`${API_BASE}/suggest?weather=sunny&vibe=${vibe}`);
+      const res = await fetch(`${API_BASE}/suggest?weather=sunny&vibe=${vibe}`, { headers: authHeaders });
       const data = await res.json();
 
       if (data.error) {
         setError(data.error);
       } else {
-        setSuggestion(data.suggestions);
+        // Adapt to the new schema from GEMINI.md
+        if (data.recommendation) {
+            setSuggestion([
+                { ...data.recommendation, rank: 1 }
+            ]);
+        } else {
+            setSuggestion(data.suggestions || []);
+        }
       }
     } catch (err) {
       setError(
@@ -105,13 +115,19 @@ export default function Main() {
       `}</style>
 
       {/* Header */}
-      <header className="max-w-md mx-auto pt-6 pb-10 text-center">
-        <h1 className="text-5xl font-black tracking-tighter text-indigo-600 italic">
-          Rel.ai
-        </h1>
-        <p className="text-slate-400 font-medium uppercase tracking-widest text-[10px] mt-1">
-          Smart Wardrobe v1.0
-        </p>
+      <header className="max-w-md mx-auto pt-6 pb-2 flex items-center justify-between">
+        <div className="text-left">
+          <h1 className="text-4xl font-black tracking-tighter text-indigo-600 italic">Rel.ai</h1>
+          <p className="text-slate-400 font-medium uppercase tracking-widest text-[10px] mt-0.5">
+            Smart Wardrobe v1.0
+          </p>
+        </div>
+        <button
+          onClick={onSignOut}
+          className="text-[10px] font-black text-slate-400 hover:text-red-500 uppercase tracking-widest transition-colors border border-slate-200 hover:border-red-200 px-3 py-2 rounded-xl"
+        >
+          Sign Out
+        </button>
       </header>
 
       <main className="max-w-md mx-auto space-y-8">
@@ -265,37 +281,38 @@ const OutfitSuggestion = ({ items, suggestion }) => {
                   Option {outfit.rank}
                 </span>
                 <span className="text-xs font-bold text-slate-400 italic">
-                  {outfit.logic || outfit.items?.logic || "Balanced Palette"}
+                  {outfit.outfit_name || outfit.logic || outfit.items?.logic || "Balanced Palette"}
                 </span>
               </div>
               <div className="bg-indigo-600 text-white px-3 py-1 rounded-full text-sm font-black shadow-lg shadow-indigo-200">
-                {outfit.style_score}
+                {outfit.confidence_score || outfit.style_score}
               </div>
             </div>
 
             {/* Internal Item Grid */}
             <div className="grid grid-cols-2 gap-2 mb-4">
               {[
+                outfit.items?.base_layer,
+                outfit.items?.mid_layer,
+                outfit.items?.outerwear,
                 outfit.items?.top,
                 outfit.items?.bottom,
                 outfit.items?.shoes,
-                outfit.items?.fragrance,
+                outfit.items?.footwear,
+                ...(Array.isArray(outfit.items?.accessories) ? outfit.items.accessories : [])
               ]
                 .filter(Boolean)
-                .map((item, idx) => (
-                  <div key={item.id || idx} className="relative group">
+                .map((item, idx) => {
+                  const itemId = typeof item === "string" ? item : item.id;
+                  return (
+                  <div key={itemId || idx} className="relative group">
                     <img
-                      src={getItemPath(items, item.id)}
+                      src={getItemPath(items, itemId)}
                       className="w-full aspect-square object-cover rounded-[1.5rem] bg-slate-50 border border-slate-100"
-                      alt={item.label}
+                      alt="Clothing item"
                     />
-                    {/* <div className="absolute bottom-1 left-2 bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full border border-slate-100">
-                      <span className="text-[8px] font-bold text-slate-800 uppercase tracking-tighter">
-                        {item.label?.split(",")[0]}
-                      </span>
-                    </div> */}
                   </div>
-                ))}
+                )})}
             </div>
 
             {/* Stylist Reasoning Section */}
@@ -304,7 +321,7 @@ const OutfitSuggestion = ({ items, suggestion }) => {
                 Stylist Notes
               </span>
               <p className="text-[11px] leading-relaxed font-medium text-slate-600 ">
-                {outfit.reasoning || outfit.items?.reasoning}
+                {outfit.rationale || outfit.reasoning || outfit.items?.reasoning}
               </p>
             </div>
           </div>
